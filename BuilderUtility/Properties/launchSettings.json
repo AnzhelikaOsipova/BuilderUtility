@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BuilderUtility": {
+      "commandName": "Project",
+      "commandLineArgs": "Target1"
+    }
+  }
+}

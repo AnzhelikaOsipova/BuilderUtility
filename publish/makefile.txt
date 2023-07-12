@@ -1,0 +1,19 @@
+Target0
+Target1: Target2 Target3 Target6
+ execute
+ update
+Target2: Target3 Target4
+ sort
+Target3
+ read 
+Target4
+Target5 : Target3
+ write
+	read
+  explode
+Target6 : Target5
+   save
+		load
+Target7:Target4
+ update
+ delete
