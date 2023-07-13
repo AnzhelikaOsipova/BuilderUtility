@@ -10,23 +10,30 @@ namespace BuilderUtility.Common.Utility
         private readonly ITasksReader _tasksReader;
 
         private List<IMakeTask>? _tasks;
-        private Queue<int> _queue;
+        private List<TaskNode> _graph;
+        private bool _reUsing = false;
 
         public TasksUtility(StreamWriter outputStream, ITasksReader tasksReader) 
         {
             _outputStream = outputStream;
             _tasksReader = tasksReader;
-            _queue = new Queue<int>();
         }
 
-        public async Task<bool> ExecuteAsync(string startTaskName)
+        public async Task<bool> TryExecuteAsync(string startTaskName)
         {
-            if (!(await TryBuildTasksAsync(startTaskName))) return false;
-
-            while(_queue.Count > 0)
+            if (_tasks is null)
             {
-                var taskIndex = _queue.Dequeue();
-                await _tasks![taskIndex].Run(_outputStream);
+                if ((await TryReadTasksAsync()) == false) return false;
+            }
+
+            _graph = _tasks!.BuildGraph(startTaskName);
+            var tasksOrder = await BuildTasksOrderAsync(startTaskName);
+            if (tasksOrder is null) return false;
+
+            while (tasksOrder.Count > 0)
+            {
+                var task = tasksOrder.Dequeue();
+                await task.Run(_outputStream);
             }
             return true;
         }
@@ -43,66 +50,60 @@ namespace BuilderUtility.Common.Utility
             return true;
         }
 
-        private async Task<bool> TryBuildTasksAsync(string startTaskName)
+        private async Task<Queue<IMakeTask>?> BuildTasksOrderAsync(string startTaskName)
         {
-            if (_tasks is null)
+            if (_reUsing)
             {
-                if ((await TryReadTasksAsync()) == false) return false;
+                _graph.ForEach(task => task.Status = NodeStatus.NotStarted);
             }
-            var taskNames = _tasks!.Select(task => task.Name).ToList();
-            var graph = await BuildGraphAsync(taskNames);
-            if (graph is null) return false;
-
-            if (_queue.Count > 0)
+            var startNode = _graph.Where(node => node.Item.Name == startTaskName).FirstOrDefault();
+            if (startNode is null)
             {
-                _queue.Clear();
+                await _outputStream.WriteLineAsync($"Failed to create tasks order - task with name {startTaskName} does not exist.");
+                return null;
             }
-            var startTaskIndex = taskNames.IndexOf(startTaskName);
-            var startNode = graph.Where(node => node.Index == startTaskIndex).SingleOrDefault();
 
-            return await TryMakeTasksOrderAsync(graph[startTaskIndex], graph);
-        }
+            _reUsing = true;
+            var stack = new Stack<TaskNode>();
+            var tasksOrder = new Queue<IMakeTask>();
+            stack.Push(startNode);
 
-        private async Task<List<TaskNode>?> BuildGraphAsync(List<string> taskNames)
-        {
-            var graph = new List<TaskNode>();
-            int counter = 0;
-            foreach (var task in _tasks!)
+            while (stack.Count > 0) 
             {
-                var dependencyIndexes = new List<int>();
-                foreach (var dependency in task.Dependencies)
+                var task = stack.Pop();
+                switch (task.Status) 
                 {
-                    var index = taskNames.IndexOf(dependency);
-                    if (index == -1)
-                    {
-                        await _outputStream.WriteLineAsync($"Failed to build the tasks' graph - the task with the name {dependency} does not exist.");
-                        return null;
-                    }
-                    dependencyIndexes.Add(index);
+                    case NodeStatus.NotStarted:
+                        if (!task.Dependencies.Any())
+                        {
+                            task.Status = NodeStatus.Passed;
+                            tasksOrder.Enqueue(task.Item);
+                            break;
+                        }
+                        task.Status = NodeStatus.InProgress;
+                        stack.Push(task);
+                        foreach (var dependency in task.Dependencies)
+                        {
+                            if (dependency.Status == NodeStatus.InProgress)
+                            {
+                                await _outputStream.WriteLineAsync("Failed to build tasks - cycle found.");
+                                return null;
+                            }
+                            if (dependency.Status != NodeStatus.Passed)
+                            {
+                                stack.Push(dependency);
+                            }
+                        }
+                        break;
+                    case NodeStatus.InProgress:
+                        task.Status = NodeStatus.Passed;
+                        tasksOrder.Enqueue(task.Item);
+                        break;
+                    case NodeStatus.Passed: 
+                        break;
                 }
-                graph.Add(new TaskNode(counter, dependencyIndexes));
-                counter++;
             }
-            return graph;
-        }
-
-        private async Task<bool> TryMakeTasksOrderAsync(TaskNode task, List<TaskNode> graph)
-        {
-            if (task.Status == NodeStatus.Passed) return true;
-            if (task.Status == NodeStatus.InProgress)
-            {
-                await _outputStream.WriteLineAsync("Failed to build tasks - cycle found.");
-                return false;
-            }
-            
-            task.Status = NodeStatus.InProgress;
-            foreach (var dependency in task.Dependencies)
-            {
-                if(!(await TryMakeTasksOrderAsync(graph[dependency], graph))) return false;
-            }
-            task.Status = NodeStatus.Passed;
-            _queue.Enqueue(task.Index);
-            return true;
+            return tasksOrder;
         }
     }
 }

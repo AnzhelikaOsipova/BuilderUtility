@@ -1,17 +1,18 @@
-﻿namespace BuilderUtility.Common.Models.Graph
+﻿using BuilderUtility.Common.Models.Interfaces;
+
+namespace BuilderUtility.Common.Models.Graph
 {
     public class TaskNode
     {
-        public int Index { get; set; }
+        public IMakeTask Item { get; set; }
 
-        public IEnumerable<int> Dependencies { get; set; }
+        public List<TaskNode> Dependencies { get; set; } = new List<TaskNode>();
 
         public NodeStatus Status { get; set; } = NodeStatus.NotStarted;
 
-        public TaskNode(int index, IEnumerable<int> dependencies)
+        public TaskNode(IMakeTask item)
         {
-            Index = index;
-            Dependencies = dependencies;
+            Item = item;
         }
     }
 }

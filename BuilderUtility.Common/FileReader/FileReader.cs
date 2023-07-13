@@ -24,6 +24,7 @@ namespace BuilderUtility.Common.FileReader
             }
 
             var makeTasks = new List<MakeTask>();
+            var tasksNames = new List<string>();
             var makeActions = new List<IMakeAction>();
             using var reader = new StreamReader(_makefilePath);
 
@@ -58,10 +59,16 @@ namespace BuilderUtility.Common.FileReader
                         await _outputStream.WriteLineAsync($"Error while parsing the line {line} - task's name cannot be empty.");
                         return null;
                     }
+                    if (tasksNames.Contains(name))
+                    {
+                        await _outputStream.WriteLineAsync($"Error while parsing the line {line} - task's names must be unique.");
+                        return null;
+                    }
                     var dependencies = names.Length == 2 ?
                         names[1].Split(' ', StringSplitOptions.RemoveEmptyEntries)
                         : Array.Empty<string>();
                     makeTasks.Add(new MakeTask(name, dependencies));
+                    tasksNames.Add(name);
                 }
                 line = reader.ReadLine();
             }

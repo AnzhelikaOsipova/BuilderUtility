@@ -8,11 +8,11 @@ packages
 .vs
 *.log
 ocelot.json
+PublishProfiles
 
 # User-specific files
 *.rsuser
 *.suo
 *.user
-!PowerBank.User
 *.userosscache
 *.sln.docstates
