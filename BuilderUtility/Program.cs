@@ -12,3 +12,4 @@ if (parsedArgs is null)
 
 var utility = new TasksUtility(stream, new FileReader(stream, parsedArgs.MakeFilePath));
 await utility.TryExecuteAsync(parsedArgs.ExecutingTaskName);
+return;

@@ -15,7 +15,7 @@ namespace BuilderUtility.Common.FileReader
             _makefilePath = makefilePath;
         }
 
-        public async Task<IEnumerable<IMakeTask>?> ReadAsync() 
+        public async Task<Dictionary<string, IMakeTask>?> ReadAsync() 
         {
             if (!File.Exists(_makefilePath))
             {
@@ -23,8 +23,7 @@ namespace BuilderUtility.Common.FileReader
                 return null;
             }
 
-            var makeTasks = new List<MakeTask>();
-            var tasksNames = new List<string>();
+            var makeTasks = new Dictionary<string, IMakeTask>();
             var makeActions = new List<IMakeAction>();
             using var reader = new StreamReader(_makefilePath);
 
@@ -34,6 +33,7 @@ namespace BuilderUtility.Common.FileReader
                 await _outputStream.WriteLineAsync("File cannot start with an action.");
                 return null;
             }
+            string taskName = "";
             while (line is not null)
             {
                 if (line.StartsWith(' ') || line.StartsWith('\t'))
@@ -44,7 +44,7 @@ namespace BuilderUtility.Common.FileReader
                 {
                     if (makeTasks.Count > 0)
                     {
-                        makeTasks[makeTasks.Count - 1].AddActions(makeActions);
+                        makeTasks[taskName].AddActions(makeActions);
                         makeActions = new List<IMakeAction>();
                     }
                     var names = line.Split(':');
@@ -53,28 +53,26 @@ namespace BuilderUtility.Common.FileReader
                         await _outputStream.WriteLineAsync($"Error while parsing the line {line} - expected only one \":\".");
                         return null;
                     }
-                    var name = names[0].Trim();
-                    if (string.IsNullOrEmpty(name))
+                    taskName = names[0].Trim();
+                    if (string.IsNullOrEmpty(taskName))
                     {
                         await _outputStream.WriteLineAsync($"Error while parsing the line {line} - task's name cannot be empty.");
-                        return null;
-                    }
-                    if (tasksNames.Contains(name))
-                    {
-                        await _outputStream.WriteLineAsync($"Error while parsing the line {line} - task's names must be unique.");
                         return null;
                     }
                     var dependencies = names.Length == 2 ?
                         names[1].Split(' ', StringSplitOptions.RemoveEmptyEntries)
                         : Array.Empty<string>();
-                    makeTasks.Add(new MakeTask(name, dependencies));
-                    tasksNames.Add(name);
+                    if (!makeTasks.TryAdd(taskName, new MakeTask(taskName, dependencies)))
+                    {
+                        await _outputStream.WriteLineAsync($"Error while parsing the line {line} - tasks' names must be unique.");
+                        return null;
+                    }
                 }
                 line = reader.ReadLine();
             }
             if (makeTasks.Count > 0)
             {
-                makeTasks[makeTasks.Count - 1].AddActions(makeActions);
+                makeTasks[taskName].AddActions(makeActions);
             }
             return makeTasks;
         }

@@ -4,6 +4,6 @@ namespace BuilderUtility.Common.Interfaces
 {
     public interface ITasksReader
     {
-        public Task<IEnumerable<IMakeTask>?> ReadAsync();
+        public Task<Dictionary<string, IMakeTask>?> ReadAsync();
     }
 }

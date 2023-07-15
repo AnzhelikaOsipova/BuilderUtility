@@ -6,12 +6,12 @@ namespace BuilderUtility.Common.Models
     {
         private IEnumerable<IMakeAction> _actions;
         public string Name { get; }
-        public IEnumerable<string> Dependencies { get; }
+        public HashSet<string> Dependencies { get; }
 
-        public MakeTask(string name, IEnumerable<string> dependencies)
+        public MakeTask(string name, string[] dependencies)
         {
             Name = name;
-            Dependencies = dependencies;
+            Dependencies = new HashSet<string>(dependencies);
         }
 
         public void AddActions(IEnumerable<IMakeAction> actions)

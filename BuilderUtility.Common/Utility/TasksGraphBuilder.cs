@@ -1,41 +1,49 @@
 ﻿using BuilderUtility.Common.Models.Graph;
 using BuilderUtility.Common.Models.Interfaces;
-using System.Runtime.CompilerServices;
 
 namespace BuilderUtility.Common.Utility
 {
     public static class TasksGraphBuilder
     {
-        public static List<TaskNode> BuildGraph(this List<IMakeTask> tasks, string startTaskName)
+        public static async Task<TaskNode?> BuildGraph(this Dictionary<string, IMakeTask> tasks, string startTaskName, StreamWriter outputStream)
         {
-            var graph = new List<TaskNode>();
+            var graph = new HashSet<TaskNode>(new TaskNodeEqualityComparer());
             var stack = new Stack<string>();
+            TaskNode? startNode = null;
             
+            if (!tasks.ContainsKey(startTaskName))
+            {
+                await outputStream.WriteLineAsync($"Failed building graph - task with name {startTaskName} does not exist.");
+                return null;
+            }
             stack.Push(startTaskName);
-            while (stack.Count > 0) 
+            while (stack.Count > 0)
             {
                 var taskName = stack.Pop();
-                if (!graph.Any(node => node.Item.Name == taskName))
+                var task = tasks[taskName];
+                var node = new TaskNode(task);
+                if (taskName == startTaskName) startNode = node;
+                if (graph.Add(node))
                 {
-                    var task = tasks.First(x => x.Name == taskName);
-                    graph.Add(new TaskNode(task));
-                    foreach(var dependency in task.Dependencies)
+                    foreach (var dependency in task.Dependencies)
                     {
                         stack.Push(dependency);
                     }
                 }
             }
-            for (int i = 0; i < graph.Count; i++) 
+            int cnt = 0;
+            foreach (var nodeI in graph) 
             {
-                for (int j = 0; j < graph.Count; j++)
+                foreach (var nodeJ in graph)
                 {
-                    if (graph[j].Item.Dependencies.Contains(graph[i].Item.Name))
+                    if (nodeJ.Item.Dependencies.Contains(nodeI.Item.Name))
                     {
-                        graph[j].Dependencies.Add(graph[i]);
+                        nodeJ.Dependencies.Add(nodeI);
                     }
                 }
+                cnt++;
             }
-            return graph;
+            return startNode!;
         }
     }
 }
